@@ -1,26 +1,48 @@
 [[source]]
+url = "https://mirrors.cloud.tencent.com/pypi/simple/"
+verify_ssl = true
+name = "tencent"
+
+[[source]]
 url = "https://pypi.org/simple"
 verify_ssl = true
 name = "pypi"
 
+[pipenv]
+install_search_all_sources = true
+
 [packages]
-grunt = "*"
 tornado = "*"
-u-msgpack-python = "*"
-chardet = "*"
-requests = "*"
+charset-normalizer = "*"
+requests = {version = "*", index = "pypi"}
 pbkdf2 = "*"
-pycryptodome = "*"
-pytz = "*"
-croniter = "*"
+pycryptodome = {version = "*", index = "pypi"}
+croniter = {version = "*", index = "pypi"}
 Jinja2 = "*"
-umsgpack = "*"
 redis = "*"
-mysql-connector-python = "*"
 incremental = "*"
+u-msgpack-python = {version = "*", index = "pypi"}
+pysocks = "*"
+faker = {version = "*", index = "pypi"}
+colorama = {version = "*", markers="sys_platform == 'win32'"}
+aiofiles = "*"
+passlib = "*"
+aiomysql = "*"
+aiosqlite = "*"
+cryptography = "*"
+aiohttp = "*"
+sqlalchemy = {version = "<2.0", extras = ["asyncio"]}
+tzdata = "*"
+greenlet = "*"
 
 [dev-packages]
-pycurl = "<7.43.0.6"
+types-croniter = "*"
+types-requests = "*"
+types-python-dateutil = "*"
+sqlalchemy2-stubs = "*"
+types-aiofiles = "*"
+pycurl = "*"
+ddddocr = "*"
 
 [requires]
-python_version = "3.8"
+python_version = "3.11"

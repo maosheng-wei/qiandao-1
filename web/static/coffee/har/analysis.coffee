@@ -3,19 +3,33 @@
 #         http://binux.me
 # Created on 2014-08-02 10:07:33
 
-window.jinja_globals = ['md5','quote_chinese','utf8','unicode','timestamp','random','date_time','is_num','add','sub','multiply','divide']
+window.jinja_globals = [
+    'int', 'float', 'bool', 'utf8', 'unicode', 'quote_chinese',
+    'b2a_hex', 'a2b_hex', 'b2a_uu', 'a2b_uu', 'b2a_base64', 'a2b_base64',
+    'b2a_qp', 'a2b_qp', 'crc_hqx', 'crc32', 'format', 'b64decode',
+    'b64encode', 'to_uuid', 'md5', 'sha1', 'password_hash', 'hash',
+    'aes_encrypt', 'aes_decrypt', 'timestamp', 'date_time', 'is_num',
+    'add', 'sub', 'multiply', 'divide', 'Faker', 'regex_replace', 'regex_escape',
+    'regex_search', 'regex_findall', 'ternary', 'random', 'shuffle',
+    'mandatory', 'type_debug', 'dict', 'lipsum', 'range',
+    'loop_length', 'loop_first', 'loop_last', 'loop_index', 'loop_index0',
+    'loop_depth', 'loop_depth0', 'loop_revindex', 'loop_revindex0',
+]
 jinja_globals = window.jinja_globals
 
 Array.prototype.some ?= (f) ->
-  (return true if f x) for x in @
+  for x in @
+    return true if f x
   return false
 
 Array.prototype.every ?= (f) ->
-  (return false if not f x) for x in @
+  for x in @
+    return false if not f x
   return true
 
 define (require, exports, module) ->
   utils = require('/static/components/utils')
+  containSpecial = RegExp(/[(\ )(\~)(\!)(\@)(\#)(\$)(\%)(\^)(\&)(\*)(\()(\))(\-)(\+)(\=)(\[)(\])(\{)(\})(\|)(\\)(\;)(\:)(\')(\")(\,)(\.)(\/)(\<)(\>)(\?)(\)]+/)
 
   xhr = (har) ->
     for entry in har.log.entries
@@ -34,7 +48,9 @@ define (require, exports, module) ->
         when mt.indexOf('javascript') != -1 then 'javascript'
         when mt in ['text/html', ] then 'document'
         when mt in ['text/css', 'application/x-pointplus', ] then 'style'
+        # deepcode ignore DuplicateCaseBody: order is important
         when mt.indexOf('application') == 0 then 'media'
+        # deepcode ignore DuplicateCaseBody: order is important
         else 'other'
     return har
 
@@ -43,7 +59,7 @@ define (require, exports, module) ->
     cookie_jar = new utils.CookieJar()
     for entry in har.log.entries
       cookies = {}
-      for cookie in cookie_jar.getCookiesSync(entry.request.url, {now: new Date(entry.startedDateTime)})
+      for cookie in cookie_jar.getCookiesSync(entry.request.url, { now: new Date(entry.startedDateTime) })
         cookies[cookie.key] = cookie.value
       for cookie in entry.request.cookies
         cookie.checked = false
@@ -69,17 +85,17 @@ define (require, exports, module) ->
           #})), entry.request.url)
 
       # update cookie from response
-      for header in (h for h in entry.response?.headers when h.name.toLowerCase() == 'set-cookie')
+      for header in (h for h in entry.response?.headers || [] when h.name.toLowerCase() == 'set-cookie') || []
         entry.filter_set_cookie = true
         try
-          cookie_jar.setCookieSync(header.value, entry.request.url, {now: new Date(entry.startedDateTime)})
+          cookie_jar.setCookieSync(header.value, entry.request.url, { now: new Date(entry.startedDateTime) })
         catch error
           console.error(error)
 
     return har
 
   sort = (har) ->
-    har.log.entries = har.log.entries.sort((a, b) ->
+    har.log.entries = har.log.entries?.sort((a, b) ->
       if a.pageref > b.pageref
         1
       else if a.pageref < b.pageref
@@ -112,8 +128,8 @@ define (require, exports, module) ->
         continue
       result = []
       try
-        for key, value of utils.querystring_parse(entry.request.postData.text)
-          result.push({name: key, value: value})
+        for key, value of utils.querystring_parse_with_variables(entry.request.postData.text)
+          result.push({ name: key, value: value })
         entry.request.postData.params = result
       catch error
         console.error(error)
@@ -141,7 +157,10 @@ define (require, exports, module) ->
           changed = true
       if changed
         query = utils.querystring_unparse_with_variables(url.query)
-        url.search = "?#{query}" if query
+        if query
+          url.search = "?#{query}"
+        else
+          url.search = ""
       entry.request.url = utils.url_unparse(url)
       entry.request.queryString = utils.dict2list(url.query)
 
@@ -166,9 +185,9 @@ define (require, exports, module) ->
         entry.response?.content.text = undefined
     return har
 
-  exports =
-    analyze: (har, variables={}) ->
-      if har.log
+  exports = {
+    analyze: (har, variables = {}) ->
+      if har.log?
         replace_variables((xhr mime_type analyze_cookies headers sort post_data rm_content har), variables)
       else
         har
@@ -181,15 +200,9 @@ define (require, exports, module) ->
 
         if exports.variables_in_entry(entry).length > 0
           entry.recommend = true
-        else if domain != utils.get_domain(entry.request.url)
+        else if domain != utils.get_domain(entry.request.url) || entry.response?.status in [304, 0]
           entry.recommend = false
-        else if entry.response?.status in [304, 0]
-          entry.recommend = false
-        else if entry.response?.status // 100 == 3
-          entry.recommend = true
-        else if entry.response?.cookies?.length > 0
-          entry.recommend = true
-        else if entry.request.method == 'POST'
+        else if entry.response?.status // 100 == 3 || entry.response.cookies?.length > 0 || entry.request.method == 'POST'
           entry.recommend = true
         else
           entry.recommend = false
@@ -229,9 +242,22 @@ define (require, exports, module) ->
 
     variables: (string) ->
       re = /{{\s*([\w]+)[^}]*?\s*}}/g
+      variables_results = []
       while m = re.exec(string)
         if jQuery.inArray(m[1], jinja_globals) < 0
-          m[1]
+          variables_results.push(m[1])
+        else
+          tmp = /{{\s*\w+\s*\((.*)\)[^}]*?\s*}}/
+          tmp = tmp.exec(m[0])
+          if tmp?.length > 1
+            list_tmp = tmp[1].split(",")
+            for list_tmp_v in list_tmp
+              tmp1 = /(^[^\d\"\'][\w]+).*?/
+              tmp_v = tmp1.exec(list_tmp_v)
+              if tmp_v? and not containSpecial.test(tmp_v[1]) and jQuery.inArray(tmp_v[1], jinja_globals) < 0
+                variables_results.push(tmp_v[1])
+      return variables_results
+
 
     variables_in_entry: (entry) ->
       result = []
@@ -241,11 +267,11 @@ define (require, exports, module) ->
         (h.value for h in entry.request.headers when h.checked)
         (c.name for c in entry.request.cookies when c.checked)
         (c.value for c in entry.request.cookies when c.checked)
-        [entry.request.postData?.text,]
-      ].map((list) ->
+        [entry.request.postData?.text, ]
+      ].forEach((list) =>
         for string in list
           for each in exports.variables(string)
-            if each not in result
+            if each? not in result
               result.push(each)
       )
       if result.length > 0
@@ -260,5 +286,6 @@ define (require, exports, module) ->
         for each in @.variables_in_entry entry
           result.push each
       return result
+  }
 
   return exports
